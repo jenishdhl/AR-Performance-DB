@@ -12,6 +12,8 @@
 // @connect      www.amazon.com.au
 // @connect      amazon.com.au
 // @connect      badgephotos.corp.amazon.com
+// @downloadURL https://raw.githubusercontent.com/jenishdhl/AR-Performance-DB/main/AR_Pulse_Dashboard_V1_Final_Lean.user.js
+// @updateURL   https://raw.githubusercontent.com/jenishdhl/AR-Performance-DB/main/AR_Pulse_Dashboard_V1_Final_Lean.user.js
 // ==/UserScript==
 
 (function () {
