@@ -1,8 +1,8 @@
 // ==UserScript==
-// @name         AR Pulse Dashboard V1
+// @name         AR Performance Dashboard V1
 // @namespace    http://tampermonkey.net/
-// @version      V1
-// @description  AR Pulse Dashboard V1: AR/WHD performance visibility dashboard.
+// @version      V1.1-night-shift-date-fix
+// @description  AR Performance Dashboard V1.1: AR/WHD dashboard with night-shift two-date scan gap fix.
 // @author       Jenish
 // @match        https://fclm-portal.amazon.com/reports/timeOnTask*
 // @require      https://ekarulf.corp.amazon.com/js/jquery-1.12.4.min.js
@@ -112,6 +112,17 @@
     return m ? Number(m[1]) : null;
   }
   function toAbsolute(minOfDay, day, baseDay) { return (day-baseDay)*1440 + minOfDay; }
+
+  // WHD activity details can cover two dates on night shift, e.g. 18:15 on 05/12 to 04:15 on 05/13.
+  // For quarter/gap logic we normalise by shift clock time, not by first scanned date.
+  // Night shift times after midnight (00:00-04:15) must be treated as 24:00+ minutes.
+  function scanTimeToShiftAbs(minOfDay) {
+    const m = Number(minOfDay);
+    if (!Number.isFinite(m)) return 0;
+    if (activeShift === 'night' && m < 720) return m + 1440;
+    return m;
+  }
+
   function absToHHMM(absMin) {
     const m = ((Math.floor(absMin)%1440)+1440)%1440;
     return String(Math.floor(m/60)).padStart(2,'0')+':'+String(m%60).padStart(2,'0');
@@ -537,7 +548,14 @@
           if(baseDay===null)baseDay=scans[0].day||1;
           // Return objects with absolute time + asin, sorted by time
           const result=scans
-            .map(s=>({time:toAbsolute(s.min,s.day||baseDay,baseDay),asin:s.asin,size:s.size,qty:s.qty}))
+            .map(s=>({
+              // Night shift crosses two calendar dates. Use shift-normalised absolute minutes
+              // so 00:30 on the next date becomes 1470, not 30.
+              time: scanTimeToShiftAbs(s.min),
+              asin:s.asin,
+              size:s.size,
+              qty:s.qty
+            }))
             .sort((a,b)=>a.time-b.time);
           cb(result);
         } catch(e){cb([]);}
@@ -581,9 +599,9 @@
           const beforeBreakGap = prevTime < b.start ? Math.max(0, b.start - prevTime) : 0;
           const afterBreakGap  = currTime > b.end ? Math.max(0, currTime - b.end) : 0;
 
-          let total = 0;
-          if (beforeBreakGap >= WHD.GAP_MIN) total += beforeBreakGap;
-          if (afterBreakGap >= WHD.GAP_MIN) total += afterBreakGap;
+          // Count all non-break idle around the break together.
+          // Example: stopped 5m before break + started 5m after break = 10m effective gap.
+          const total = beforeBreakGap + afterBreakGap;
 
           return {
             mins: Math.round(total),
